@@ -68,7 +68,7 @@ bool SampleVoice::Process(double time, ChannelBuffer* out, int oversampling)
          if (mVoiceParams->mDetectedFreq != -1)
             speed = freq/mVoiceParams->mDetectedFreq;
          else
-            speed = freq/TheScale->PitchToFreq(TheScale->ScaleRoot()+48);
+            speed = freq;
          
          float sample = GetInterpolatedSample(mPos, mVoiceParams->mSampleData, mVoiceParams->mSampleLength) * mAdsr.Value(time) * volSq;
          
