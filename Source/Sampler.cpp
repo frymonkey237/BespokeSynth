@@ -45,12 +45,16 @@ Sampler::Sampler()
 , mRecordCheckbox(nullptr)
 , mThresh(.2f)
 , mThreshSlider(nullptr)
-, mPitchCorrect(false)
-, mPitchCorrectCheckbox(nullptr)
+, mDetectPitch(false)
+, mDetectPitchCheckbox(nullptr)
 , mWantDetectPitch(false)
 , mPassthrough(false)
 , mPassthroughCheckbox(nullptr)
 , mWriteBuffer(gBufferSize)
+, mPitch(TheScale->ScaleRoot()+48)
+, mPitchSlider(nullptr)
+, mPitchOffset(0)
+, mPitchOffsetSlider(nullptr)
 {
    mSampleData = new float[MAX_SAMPLER_LENGTH];   //store up to 2 seconds
    Clear(mSampleData, MAX_SAMPLER_LENGTH);
@@ -59,7 +63,7 @@ Sampler::Sampler()
    mVoiceParams.mAdsr.Set(10,0,1,10);
    mVoiceParams.mSampleData = mSampleData;
    mVoiceParams.mSampleLength = 0;
-   mVoiceParams.mDetectedFreq = -1;
+   mVoiceParams.mDetectedFreq = TheScale->PitchToFreq(mPitch + mPitchOffset);
    mVoiceParams.mLoop = false;
    
    mPolyMgr.Init(kVoiceType_Sampler, &mVoiceParams);
@@ -74,9 +78,11 @@ void Sampler::CreateUIControls()
    mADSRDisplay = new ADSRDisplay(this,"env",5,15,80,40,&mVoiceParams.mAdsr);
    mRecordCheckbox = new Checkbox(this,"rec",5,57,&mRecording);
    mThreshSlider = new FloatSlider(this,"thresh",90,73,80,15,&mThresh,0,1);
-   mPitchCorrectCheckbox = new Checkbox(this,"pitch",60,57,&mPitchCorrect);
+   mDetectPitchCheckbox = new Checkbox(this,"detect",50,57,&mDetectPitch);
    mPassthroughCheckbox = new Checkbox(this,"passthrough",70,0,&mPassthrough);
-   
+   mPitchSlider = new IntSlider(this,"pitch", 5, 91, 84, 15,&mPitch,0,127);
+   mPitchOffsetSlider = new FloatSlider(this,"fine",125,91,80,15,&mPitchOffset,-1,1);
+
    mADSRDisplay->SetVol(mVoiceParams.mVol);
 }
 
@@ -89,7 +95,7 @@ void Sampler::Poll()
 {
    if (mWantDetectPitch)
    {
-      mVoiceParams.mDetectedFreq = DetectSampleFrequency();
+      DetectSamplePitch();
       mWantDetectPitch = false;
    }
 }
@@ -185,8 +191,12 @@ void Sampler::DrawModule()
    mADSRDisplay->Draw();
    mRecordCheckbox->Draw();
    mThreshSlider->Draw();
-   mPitchCorrectCheckbox->Draw();
+   mDetectPitchCheckbox->Draw();
    mPassthroughCheckbox->Draw();
+   mPitchSlider->Draw();
+   mPitchOffsetSlider->Draw();
+
+   DrawTextNormal(NoteName(mPitch)+ofToString(mPitch/12 - 2), 92, 103);
    
    ofPushMatrix();
    ofTranslate(100,15);
@@ -204,11 +214,11 @@ void Sampler::StopRecording()
 {
    mRecording = false;
    mVoiceParams.mSampleLength = mRecordPos;
-   if (mPitchCorrect)
+   if (mDetectPitch)
       mWantDetectPitch = true;
 }
 
-float Sampler::DetectSampleFrequency()
+void Sampler::DetectSamplePitch()
 {
    /*EnvOscillator osc(kOsc_Sin);
    osc.Start(0,1);
@@ -225,16 +235,18 @@ float Sampler::DetectSampleFrequency()
       time += gInvSampleRateMs;
    }*/
    
-   float pitch = mPitchDetector.DetectPitch(mSampleData, MAX_SAMPLER_LENGTH);
-   float freq = TheScale->PitchToFreq(pitch);
+   float realPitch = mPitchDetector.DetectPitch(mSampleData, MAX_SAMPLER_LENGTH);
+   float freq = TheScale->PitchToFreq(realPitch);
+   mPitch = (int)round(realPitch); 
+   mPitchOffset = realPitch - mPitch; 
+   mVoiceParams.mDetectedFreq = freq;
    ofLog() << "Detected frequency: " << freq;
-   return freq;
 }
 
 void Sampler::GetModuleDimensions(float& width, float& height)
 {
    width = 210;
-   height = 90;
+   height = 107;
 }
 
 void Sampler::FilesDropped(std::vector<std::string> files, int x, int y)
@@ -284,10 +296,14 @@ void Sampler::FloatSliderUpdated(FloatSlider* slider, float oldVal)
 {
    if (slider == mVolSlider)
       mADSRDisplay->SetVol(mVoiceParams.mVol);
+   else if (slider == mPitchOffsetSlider)
+        mVoiceParams.mDetectedFreq = TheScale->PitchToFreq(mPitch + mPitchOffset);
 }
 
 void Sampler::IntSliderUpdated(IntSlider* slider, int oldVal)
 {
+    if (slider == mPitchSlider)
+        mVoiceParams.mDetectedFreq = TheScale->PitchToFreq(mPitch + mPitchOffset);
    
 }
 
@@ -306,12 +322,10 @@ void Sampler::CheckboxUpdated(Checkbox* checkbox)
          StopRecording();
       }
    }
-   if (checkbox == mPitchCorrectCheckbox)
+   if (checkbox == mDetectPitchCheckbox)
    {
-      if (mPitchCorrect)
-         mVoiceParams.mDetectedFreq = DetectSampleFrequency();
-      else
-         mVoiceParams.mDetectedFreq = -1;
+      if (mDetectPitch)
+        DetectSamplePitch();
    }
 }
 
@@ -343,7 +357,7 @@ void Sampler::LoadState(FileStreamIn& in)
    if (rev >= 1)
       in >> mVoiceParams.mSampleLength;
    
-   if (mPitchCorrect)
+   if (mDetectPitch)
       mWantDetectPitch = true;
 }
 

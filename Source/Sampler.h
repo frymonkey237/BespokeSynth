@@ -82,7 +82,7 @@ public:
    
 private:
    void StopRecording();
-   float DetectSampleFrequency();
+   void DetectSamplePitch();
    
    //IDrawableModule
    void DrawModule() override;
@@ -102,8 +102,8 @@ private:
    int mRecordPos;
    bool mRecording;
    Checkbox* mRecordCheckbox;
-   bool mPitchCorrect;
-   Checkbox* mPitchCorrectCheckbox;
+   bool mDetectPitch;
+   Checkbox* mDetectPitchCheckbox;
    bool mPassthrough;
    Checkbox* mPassthroughCheckbox;
    
@@ -111,6 +111,12 @@ private:
    
    PitchDetector mPitchDetector;
    bool mWantDetectPitch;
+
+   int mPitch;
+   IntSlider* mPitchSlider;
+
+   float mPitchOffset;
+   FloatSlider* mPitchOffsetSlider;
 };
 
 
